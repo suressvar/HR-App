@@ -20,11 +20,58 @@ router.get('/owner', requireRole(Role.OWNER), async (req: Request, res: Response
     const completedTasks = updatedTasks.filter((t) => t.status === TaskStatus.COMPLETED).length;
     const overdueTasks = updatedTasks.filter((t) => t.status === TaskStatus.OVERDUE).length;
 
+    // Compile per-employee progress
+    const employeesList = await prisma.employee.findMany({
+      orderBy: { name: 'asc' },
+    });
+
+    const employeeProgress = await Promise.all(
+      employeesList.map(async (emp) => {
+        const empTasks = await prisma.task.findMany({
+          where: { employeeId: emp.id },
+        });
+        const updatedEmpTasks = await updateOverdueTasks(empTasks);
+        
+        const total = updatedEmpTasks.length;
+        const completed = updatedEmpTasks.filter((t) => t.status === TaskStatus.COMPLETED).length;
+        const overdue = updatedEmpTasks.filter((t) => t.status === TaskStatus.OVERDUE).length;
+        const inProgress = total - (completed + overdue);
+
+        return {
+          id: emp.id,
+          name: emp.name,
+          role: emp.role,
+          status: emp.status,
+          totalTasks: total,
+          completedTasks: completed,
+          overdueTasks: overdue,
+          inProgressTasks: inProgress,
+        };
+      })
+    );
+
+    // Retrieve recent 5 self-allocated tasks
+    const recentTasks = await prisma.task.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      include: {
+        employee: {
+          select: {
+            name: true,
+            role: true,
+          },
+        },
+      },
+    });
+    const updatedRecentTasks = await updateOverdueTasks(recentTasks);
+
     return res.status(200).json({
       totalEmployees,
       totalTasks,
       completedTasks,
       overdueTasks,
+      employeeProgress,
+      recentSelfAllocatedTasks: updatedRecentTasks,
     });
   } catch (error) {
     console.error('Owner dashboard summary error:', error);

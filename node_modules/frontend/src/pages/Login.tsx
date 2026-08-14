@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Building2, Lock, Mail, AlertCircle } from 'lucide-react';
+import { Building2, Lock, Mail, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
 export const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -81,13 +82,24 @@ export const Login: React.FC = () => {
                 <Lock className="w-4 h-4" />
               </div>
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••••••"
-                className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-border focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand-light text-sm transition-all"
+                className="w-full pl-10 pr-12 py-2.5 rounded-lg border border-border focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand-light text-sm transition-all"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-ink-muted hover:text-brand focus:outline-none"
+              >
+                {showPassword ? (
+                  <EyeOff className="w-4.5 h-4.5 animate-fade-in" />
+                ) : (
+                  <Eye className="w-4.5 h-4.5 animate-fade-in" />
+                )}
+              </button>
             </div>
           </div>
 

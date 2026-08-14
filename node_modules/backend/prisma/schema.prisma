@@ -42,15 +42,19 @@ model OwnerProfile {
 }
 
 model Task {
-  id          String     @id @default(uuid())
-  employeeId  String
-  employee    Employee   @relation(fields: [employeeId], references: [id])
-  title       String
-  description String
-  dueDate     DateTime
-  status      TaskStatus @default(PENDING)
-  completedAt DateTime?
-  createdAt   DateTime   @default(now())
+  id              String     @id @default(uuid())
+  employeeId      String
+  employee        Employee   @relation(fields: [employeeId], references: [id])
+  title           String
+  description     String
+  dueDate         DateTime
+  status          TaskStatus @default(PENDING)
+  priority        Priority   @default(MEDIUM)
+  estimatedHours  Float?
+  category        String?
+  completionNotes String?
+  completedAt     DateTime?
+  createdAt       DateTime   @default(now())
 }
 
 enum Role {
@@ -58,9 +62,17 @@ enum Role {
   EMPLOYEE
 }
 
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
 enum TaskStatus {
   PENDING
   IN_PROGRESS
+  IN_REVIEW
   COMPLETED
   OVERDUE
 }

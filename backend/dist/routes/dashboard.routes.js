@@ -16,11 +16,51 @@ router.get('/owner', (0, auth_1.requireRole)(client_1.Role.OWNER), async (req, r
         const totalTasks = updatedTasks.length;
         const completedTasks = updatedTasks.filter((t) => t.status === client_1.TaskStatus.COMPLETED).length;
         const overdueTasks = updatedTasks.filter((t) => t.status === client_1.TaskStatus.OVERDUE).length;
+        // Compile per-employee progress
+        const employeesList = await prisma_1.prisma.employee.findMany({
+            orderBy: { name: 'asc' },
+        });
+        const employeeProgress = await Promise.all(employeesList.map(async (emp) => {
+            const empTasks = await prisma_1.prisma.task.findMany({
+                where: { employeeId: emp.id },
+            });
+            const updatedEmpTasks = await (0, taskHelper_1.updateOverdueTasks)(empTasks);
+            const total = updatedEmpTasks.length;
+            const completed = updatedEmpTasks.filter((t) => t.status === client_1.TaskStatus.COMPLETED).length;
+            const overdue = updatedEmpTasks.filter((t) => t.status === client_1.TaskStatus.OVERDUE).length;
+            const inProgress = total - (completed + overdue);
+            return {
+                id: emp.id,
+                name: emp.name,
+                role: emp.role,
+                status: emp.status,
+                totalTasks: total,
+                completedTasks: completed,
+                overdueTasks: overdue,
+                inProgressTasks: inProgress,
+            };
+        }));
+        // Retrieve recent 5 self-allocated tasks
+        const recentTasks = await prisma_1.prisma.task.findMany({
+            orderBy: { createdAt: 'desc' },
+            take: 5,
+            include: {
+                employee: {
+                    select: {
+                        name: true,
+                        role: true,
+                    },
+                },
+            },
+        });
+        const updatedRecentTasks = await (0, taskHelper_1.updateOverdueTasks)(recentTasks);
         return res.status(200).json({
             totalEmployees,
             totalTasks,
             completedTasks,
             overdueTasks,
+            employeeProgress,
+            recentSelfAllocatedTasks: updatedRecentTasks,
         });
     }
     catch (error) {

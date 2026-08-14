@@ -15,9 +15,13 @@ const createTaskSchema = zod_1.z.object({
     dueDate: zod_1.z.string().refine((val) => !isNaN(Date.parse(val)), {
         message: 'Invalid due date string',
     }),
+    priority: zod_1.z.nativeEnum(client_1.Priority).optional(),
+    estimatedHours: zod_1.z.number().min(0, 'Estimated hours cannot be negative').nullable().optional(),
+    category: zod_1.z.string().nullable().optional(),
 });
 const updateTaskStatusSchema = zod_1.z.object({
     status: zod_1.z.nativeEnum(client_1.TaskStatus),
+    completionNotes: zod_1.z.string().nullable().optional(),
 });
 // All task routes require authentication
 router.use(auth_1.requireAuth);
@@ -56,7 +60,7 @@ router.patch('/:id/status', (0, auth_1.requireRole)(client_1.Role.EMPLOYEE), asy
             const errorMessage = parseResult.error.issues.map((e) => e.message).join(', ');
             return res.status(400).json({ error: errorMessage });
         }
-        const { status } = parseResult.data;
+        const { status, completionNotes } = parseResult.data;
         const { id } = req.params;
         const employee = await prisma_1.prisma.employee.findUnique({
             where: { userId: req.user.userId },
@@ -79,6 +83,7 @@ router.patch('/:id/status', (0, auth_1.requireRole)(client_1.Role.EMPLOYEE), asy
             data: {
                 status,
                 completedAt,
+                ...(completionNotes !== undefined && { completionNotes }),
             },
         });
         return res.status(200).json(updatedTask);
@@ -88,15 +93,73 @@ router.patch('/:id/status', (0, auth_1.requireRole)(client_1.Role.EMPLOYEE), asy
         return res.status(500).json({ error: 'Failed to update task status.' });
     }
 });
-// POST /api/tasks (OWNER only)
-router.post('/', (0, auth_1.requireRole)(client_1.Role.OWNER), async (req, res) => {
+// PATCH /api/tasks/:id/approve (OWNER only)
+router.patch('/:id/approve', (0, auth_1.requireRole)(client_1.Role.OWNER), async (req, res) => {
     try {
+        const { id } = req.params;
+        const existingTask = await prisma_1.prisma.task.findUnique({
+            where: { id },
+            include: { employee: true },
+        });
+        if (!existingTask) {
+            return res.status(404).json({ error: 'Task not found.' });
+        }
+        const updatedTask = await prisma_1.prisma.task.update({
+            where: { id },
+            data: {
+                status: client_1.TaskStatus.COMPLETED,
+                completedAt: new Date(),
+            },
+        });
+        // Send confirmation email to the employee in the background
+        (0, email_1.sendMail)({
+            to: existingTask.employee.email,
+            subject: `Task Approved & Completed: ${existingTask.title}`,
+            html: `
+        <div style="font-family: sans-serif; padding: 20px; color: #1E1B2E;">
+          <h2 style="color: #10B981;">Task Approved</h2>
+          <p>Dear ${existingTask.employee.name},</p>
+          <p>Your self-allocated task has been reviewed and approved by the owner:</p>
+          <div style="background-color: #ECFDF5; padding: 15px; border-radius: 8px; margin: 15px 0; border: 1px solid #A7F3D0;">
+            <h3 style="margin: 0 0 8px 0; color: #065F46;">${existingTask.title}</h3>
+            <p style="margin: 0 0 8px 0; font-size: 14px;">${existingTask.description}</p>
+            <p style="margin: 0; font-size: 13px; color: #047857;"><strong>Status:</strong> Completed & Approved</p>
+          </div>
+          <p style="font-size: 12px; color: #6B6580;">Great job completing this task!</p>
+        </div>
+      `,
+        }).catch((emailErr) => {
+            console.error('Non-critical approval email dispatch failure:', emailErr);
+        });
+        return res.status(200).json(updatedTask);
+    }
+    catch (error) {
+        console.error('Approve task error:', error);
+        return res.status(500).json({ error: 'Failed to approve task.' });
+    }
+});
+// POST /api/tasks (OWNER or EMPLOYEE self-allocation)
+router.post('/', (0, auth_1.requireRole)([client_1.Role.OWNER, client_1.Role.EMPLOYEE]), async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ error: 'Authentication required.' });
+        }
+        // If requester is an employee, override/force employeeId to their own ID
+        if (req.user.role === client_1.Role.EMPLOYEE) {
+            const employee = await prisma_1.prisma.employee.findUnique({
+                where: { userId: req.user.userId },
+            });
+            if (!employee) {
+                return res.status(404).json({ error: 'Employee profile not found.' });
+            }
+            req.body.employeeId = employee.id;
+        }
         const parseResult = createTaskSchema.safeParse(req.body);
         if (!parseResult.success) {
             const errorMessage = parseResult.error.issues.map((e) => e.message).join(', ');
             return res.status(400).json({ error: errorMessage });
         }
-        const { employeeId, title, description, dueDate } = parseResult.data;
+        const { employeeId, title, description, dueDate, priority, estimatedHours, category } = parseResult.data;
         const employeeExists = await prisma_1.prisma.employee.findUnique({
             where: { id: employeeId },
         });
@@ -110,11 +173,43 @@ router.post('/', (0, auth_1.requireRole)(client_1.Role.OWNER), async (req, res) 
                 description,
                 dueDate: new Date(dueDate),
                 status: client_1.TaskStatus.PENDING,
+                priority: priority || client_1.Priority.MEDIUM,
+                estimatedHours: estimatedHours ?? null,
+                category: category ?? null,
             },
         });
-        // Send task assignment email to employee
-        try {
-            await (0, email_1.sendMail)({
+        // Handle Email Notifications in the background (asynchronously)
+        if (req.user.role === client_1.Role.EMPLOYEE) {
+            // Send task self-allocation email to Owner in background
+            prisma_1.prisma.ownerProfile.findFirst().then((ownerProfile) => {
+                if (ownerProfile) {
+                    (0, email_1.sendMail)({
+                        to: ownerProfile.email,
+                        subject: `New self-allocated task: ${task.title} (by ${employeeExists.name})`,
+                        html: `
+              <div style="font-family: sans-serif; padding: 20px; color: #1E1B2E;">
+                <h2 style="color: #7C3AED;">Task Self-Allocation</h2>
+                <p>Hello ${ownerProfile.name},</p>
+                <p>Employee <strong>${employeeExists.name}</strong> (${employeeExists.role}) has self-allocated a new task:</p>
+                <div style="background-color: #EDE4FC; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                  <h3 style="margin: 0 0 8px 0; color: #1E1B2E;">${task.title}</h3>
+                  <p style="margin: 0 0 8px 0; font-size: 14px;">${task.description}</p>
+                  <p style="margin: 0; font-size: 13px; color: #6B6580;"><strong>Due Date:</strong> ${new Date(task.dueDate).toLocaleString()}</p>
+                </div>
+                <p style="font-size: 12px; color: #6B6580;">You can monitor their progress in the Executive Dashboard.</p>
+              </div>
+            `,
+                    }).catch((emailErr) => {
+                        console.error('Non-critical owner email dispatch failure:', emailErr);
+                    });
+                }
+            }).catch((profileErr) => {
+                console.error('Non-critical owner profile query failure:', profileErr);
+            });
+        }
+        else {
+            // Send task assignment email to employee in background
+            (0, email_1.sendMail)({
                 to: employeeExists.email,
                 subject: `New task assigned: ${task.title}`,
                 html: `
@@ -130,10 +225,9 @@ router.post('/', (0, auth_1.requireRole)(client_1.Role.OWNER), async (req, res) 
             <p style="font-size: 12px; color: #6B6580;">Please log into the portal to review and update task status.</p>
           </div>
         `,
+            }).catch((emailErr) => {
+                console.error('Non-critical task email dispatch failure:', emailErr);
             });
-        }
-        catch (emailErr) {
-            console.error('Non-critical task email dispatch failure:', emailErr);
         }
         return res.status(201).json(task);
     }

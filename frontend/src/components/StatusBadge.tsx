@@ -34,6 +34,12 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
           Overdue
         </span>
       );
+    case 'IN_REVIEW':
+      return (
+        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-[#EFF6FF] text-[#2563EB] border border-[#DBEAFE]">
+          In Review
+        </span>
+      );
     case 'ACTIVE':
       return (
         <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-[#F0FDF4] text-[#16A34A] border border-[#DCFCE7]">

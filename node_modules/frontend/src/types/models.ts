@@ -19,7 +19,11 @@ export interface TaskItem {
   title: string;
   description: string;
   dueDate: string;
-  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'OVERDUE';
+  status: 'PENDING' | 'IN_PROGRESS' | 'IN_REVIEW' | 'COMPLETED' | 'OVERDUE';
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  estimatedHours?: number | null;
+  category?: string | null;
+  completionNotes?: string | null;
   completedAt?: string | null;
   createdAt: string;
   employee?: {
@@ -30,9 +34,22 @@ export interface TaskItem {
   };
 }
 
+export interface EmployeeProgressItem {
+  id: string;
+  name: string;
+  role: string;
+  status: string;
+  totalTasks: number;
+  completedTasks: number;
+  overdueTasks: number;
+  inProgressTasks: number;
+}
+
 export interface DashboardSummary {
   totalEmployees: number;
   totalTasks: number;
   completedTasks: number;
   overdueTasks: number;
+  employeeProgress?: EmployeeProgressItem[];
+  recentSelfAllocatedTasks?: TaskItem[];
 }
