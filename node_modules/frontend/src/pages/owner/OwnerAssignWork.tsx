@@ -15,13 +15,29 @@ export const OwnerAssignWork: React.FC = () => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState('');
+  const [frequency, setFrequency] = useState<'ONE_TIME' | 'DAILY' | 'WEEKLY' | 'YEARLY'>('ONE_TIME');
 
   // Filter state
   const [filterEmployeeId, setFilterEmployeeId] = useState<string>('ALL');
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
+  const [filterFrequency, setFilterFrequency] = useState<string>('ALL');
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+
+  const getFrequencyStyle = (f?: string) => {
+    switch (f) {
+      case 'DAILY':
+        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      case 'WEEKLY':
+        return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+      case 'YEARLY':
+        return 'bg-purple-50 text-purple-700 border-purple-200';
+      case 'ONE_TIME':
+      default:
+        return 'bg-slate-100 text-slate-700 border-slate-200';
+    }
+  };
 
   // GET /api/employees for dropdown
   const { data: employees } = useQuery<EmployeeItem[]>({
@@ -37,7 +53,7 @@ export const OwnerAssignWork: React.FC = () => {
 
   // POST /api/tasks mutation
   const createTaskMutation = useMutation({
-    mutationFn: (newTask: { employeeId: string; title: string; description: string; dueDate: string }) =>
+    mutationFn: (newTask: { employeeId: string; title: string; description: string; dueDate: string; frequency?: string }) =>
       fetchApi<TaskItem>('/tasks', { method: 'POST', body: JSON.stringify(newTask) }, token),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
@@ -50,6 +66,7 @@ export const OwnerAssignWork: React.FC = () => {
       setTitle('');
       setDescription('');
       setDueDate('');
+      setFrequency('ONE_TIME');
     },
     onError: (err: any) => {
       setFormError(err.message || 'Failed to assign task');
@@ -68,6 +85,7 @@ export const OwnerAssignWork: React.FC = () => {
       title,
       description,
       dueDate: new Date(dueDate).toISOString(),
+      frequency,
     });
   };
 
@@ -75,6 +93,7 @@ export const OwnerAssignWork: React.FC = () => {
   const filteredTasks = tasks?.filter((t) => {
     if (filterEmployeeId !== 'ALL' && t.employeeId !== filterEmployeeId) return false;
     if (filterStatus !== 'ALL' && t.status !== filterStatus) return false;
+    if (filterFrequency !== 'ALL' && (t.frequency || 'ONE_TIME') !== filterFrequency) return false;
     return true;
   });
 
@@ -111,7 +130,7 @@ export const OwnerAssignWork: React.FC = () => {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-xs font-semibold text-ink-muted uppercase mb-1">Assign to Employee</label>
             <select
@@ -140,7 +159,22 @@ export const OwnerAssignWork: React.FC = () => {
             />
           </div>
 
-          <div className="md:col-span-2">
+          <div>
+            <label className="block text-xs font-semibold text-ink-muted uppercase mb-1">Task Frequency</label>
+            <select
+              required
+              value={frequency}
+              onChange={(e) => setFrequency(e.target.value as any)}
+              className="w-full px-3.5 py-2.5 rounded-lg border border-border focus:outline-none focus:border-brand text-sm bg-white"
+            >
+              <option value="ONE_TIME">One-Time</option>
+              <option value="DAILY">Daily</option>
+              <option value="WEEKLY">Weekly</option>
+              <option value="YEARLY">Yearly</option>
+            </select>
+          </div>
+
+          <div className="md:col-span-3">
             <label className="block text-xs font-semibold text-ink-muted uppercase mb-1">Task Title</label>
             <input
               type="text"
@@ -152,7 +186,7 @@ export const OwnerAssignWork: React.FC = () => {
             />
           </div>
 
-          <div className="md:col-span-2">
+          <div className="md:col-span-3">
             <label className="block text-xs font-semibold text-ink-muted uppercase mb-1">Task Description</label>
             <textarea
               required
@@ -164,7 +198,7 @@ export const OwnerAssignWork: React.FC = () => {
             />
           </div>
 
-          <div className="md:col-span-2 flex justify-end">
+          <div className="md:col-span-3 flex justify-end">
             <button
               type="submit"
               disabled={createTaskMutation.isPending}
@@ -215,6 +249,19 @@ export const OwnerAssignWork: React.FC = () => {
               <option value="COMPLETED">Completed</option>
               <option value="OVERDUE">Overdue</option>
             </select>
+
+            {/* Filter by Frequency */}
+            <select
+              value={filterFrequency}
+              onChange={(e) => setFilterFrequency(e.target.value)}
+              className="px-3 py-1.5 rounded-lg border border-border text-xs font-medium bg-white focus:outline-none focus:border-brand"
+            >
+              <option value="ALL">All Frequencies</option>
+              <option value="ONE_TIME">One-Time</option>
+              <option value="DAILY">Daily</option>
+              <option value="WEEKLY">Weekly</option>
+              <option value="YEARLY">Yearly</option>
+            </select>
           </div>
         </div>
 
@@ -246,7 +293,12 @@ export const OwnerAssignWork: React.FC = () => {
                       </td>
                       <td className="py-4 px-6 max-w-xs">
                         <div className="font-semibold text-ink">{t.title}</div>
-                        <div className="text-xs text-ink-muted line-clamp-2 mt-0.5">{t.description}</div>
+                        <div className="text-xs text-ink-muted line-clamp-2 mt-0.5 mb-1.5">{t.description}</div>
+                        <div className="flex gap-1.5 items-center">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border ${getFrequencyStyle(t.frequency)}`}>
+                            {t.frequency === 'ONE_TIME' ? 'One-Time' : t.frequency || 'One-Time'}
+                          </span>
+                        </div>
                       </td>
                       <td className="py-4 px-6 text-ink-muted whitespace-nowrap text-xs">
                         {new Date(t.dueDate).toLocaleDateString('en-US', {

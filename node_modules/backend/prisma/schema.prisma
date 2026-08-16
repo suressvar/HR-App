@@ -42,19 +42,20 @@ model OwnerProfile {
 }
 
 model Task {
-  id              String     @id @default(uuid())
+  id              String        @id @default(uuid())
   employeeId      String
-  employee        Employee   @relation(fields: [employeeId], references: [id])
+  employee        Employee      @relation(fields: [employeeId], references: [id])
   title           String
   description     String
   dueDate         DateTime
-  status          TaskStatus @default(PENDING)
-  priority        Priority   @default(MEDIUM)
+  status          TaskStatus    @default(PENDING)
+  priority        Priority      @default(MEDIUM)
   estimatedHours  Float?
   category        String?
   completionNotes String?
   completedAt     DateTime?
-  createdAt       DateTime   @default(now())
+  createdAt       DateTime      @default(now())
+  frequency       TaskFrequency @default(ONE_TIME)
 }
 
 enum Role {
@@ -76,3 +77,11 @@ enum TaskStatus {
   COMPLETED
   OVERDUE
 }
+
+enum TaskFrequency {
+  ONE_TIME
+  DAILY
+  WEEKLY
+  YEARLY
+}
+

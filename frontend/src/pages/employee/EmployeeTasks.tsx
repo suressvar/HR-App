@@ -21,6 +21,7 @@ export const EmployeeTasks: React.FC = () => {
   const [priority, setPriority] = useState<'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'>('MEDIUM');
   const [estimatedHours, setEstimatedHours] = useState('');
   const [category, setCategory] = useState('TECHNICAL');
+  const [frequency, setFrequency] = useState<'ONE_TIME' | 'DAILY' | 'WEEKLY' | 'YEARLY'>('ONE_TIME');
 
   // Task submission notes modal state
   const [selectedTaskForReview, setSelectedTaskForReview] = useState<TaskItem | null>(null);
@@ -65,6 +66,7 @@ export const EmployeeTasks: React.FC = () => {
       priority: string;
       estimatedHours?: number;
       category: string;
+      frequency: string;
     }) => fetchApi<TaskItem>('/tasks', { method: 'POST', body: JSON.stringify(newTask) }, token),
     onSuccess: (createdTask) => {
       queryClient.invalidateQueries({ queryKey: ['myTasks'] });
@@ -79,6 +81,7 @@ export const EmployeeTasks: React.FC = () => {
       setPriority('MEDIUM');
       setEstimatedHours('');
       setCategory('TECHNICAL');
+      setFrequency('ONE_TIME');
     },
     onError: (err: any) => {
       setErrorMessage(err.message || 'Failed to self-allocate task.');
@@ -122,6 +125,7 @@ export const EmployeeTasks: React.FC = () => {
       priority,
       estimatedHours: estimatedHours ? parseFloat(estimatedHours) : undefined,
       category,
+      frequency,
     });
   };
 
@@ -136,6 +140,20 @@ export const EmployeeTasks: React.FC = () => {
       case 'MEDIUM':
       default:
         return 'bg-sky-50 text-sky-700 border-sky-200';
+    }
+  };
+
+  const getFrequencyStyle = (f?: string) => {
+    switch (f) {
+      case 'DAILY':
+        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      case 'WEEKLY':
+        return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+      case 'YEARLY':
+        return 'bg-purple-50 text-purple-700 border-purple-200';
+      case 'ONE_TIME':
+      default:
+        return 'bg-slate-100 text-slate-700 border-slate-200';
     }
   };
 
@@ -215,6 +233,10 @@ export const EmployeeTasks: React.FC = () => {
                           {/* Category Badge */}
                           <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
                             {task.category || 'TECHNICAL'}
+                          </span>
+                          {/* Frequency Badge */}
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border ${getFrequencyStyle(task.frequency)}`}>
+                            {task.frequency === 'ONE_TIME' ? 'One-Time' : task.frequency || 'One-Time'}
                           </span>
                           {/* Est. Hours */}
                           {task.estimatedHours && (
@@ -357,6 +379,34 @@ export const EmployeeTasks: React.FC = () => {
                         }`}
                       >
                         {c}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-bold text-ink-muted uppercase tracking-wider mb-2">
+                    Task Frequency
+                  </label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {(['ONE_TIME', 'DAILY', 'WEEKLY', 'YEARLY'] as const).map((f) => (
+                      <button
+                        key={f}
+                        type="button"
+                        onClick={() => setFrequency(f)}
+                        className={`py-2 px-3 text-xs font-bold rounded-lg border text-center transition-all cursor-pointer ${
+                          frequency === f
+                            ? f === 'DAILY'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-300 ring-2 ring-emerald-100'
+                              : f === 'WEEKLY'
+                              ? 'bg-indigo-50 text-indigo-700 border-indigo-300 ring-2 ring-indigo-100'
+                              : f === 'YEARLY'
+                              ? 'bg-purple-50 text-purple-700 border-purple-300 ring-2 ring-purple-100'
+                              : 'bg-slate-100 text-slate-700 border-slate-300 ring-2 ring-slate-100'
+                            : 'bg-white text-ink hover:bg-slate-50 border-border'
+                        }`}
+                      >
+                        {f === 'ONE_TIME' ? 'ONE TIME' : f}
                       </button>
                     ))}
                   </div>

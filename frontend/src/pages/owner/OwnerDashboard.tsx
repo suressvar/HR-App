@@ -11,6 +11,20 @@ export const OwnerDashboard: React.FC = () => {
   const { token } = useAuth();
   const queryClient = useQueryClient();
 
+  const getFrequencyStyle = (f?: string) => {
+    switch (f) {
+      case 'DAILY':
+        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      case 'WEEKLY':
+        return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+      case 'YEARLY':
+        return 'bg-purple-50 text-purple-700 border-purple-200';
+      case 'ONE_TIME':
+      default:
+        return 'bg-slate-100 text-slate-700 border-slate-200';
+    }
+  };
+
   // GET summary metrics
   const { data, isLoading: isSummaryLoading, isError: isSummaryError, error: summaryError } = useQuery<DashboardSummary>({
     queryKey: ['ownerDashboard'],
@@ -158,9 +172,12 @@ export const OwnerDashboard: React.FC = () => {
             {inReviewTasks.map((task) => (
               <div key={task.id} className="bg-white border border-border rounded-xl p-5 flex flex-col justify-between shadow-sm hover:shadow-md transition-all duration-200">
                 <div className="space-y-3.5">
-                  <div className="flex items-center justify-between gap-2.5">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="text-[10px] uppercase font-extrabold tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
                       {task.category || 'TECHNICAL'}
+                    </span>
+                    <span className={`text-[10px] uppercase font-extrabold tracking-wider px-2 py-0.5 rounded border ${getFrequencyStyle(task.frequency)}`}>
+                      {task.frequency === 'ONE_TIME' ? 'One-Time' : task.frequency || 'One-Time'}
                     </span>
                     <span className="text-[10px] uppercase font-extrabold tracking-wider px-2.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
                       {task.priority || 'MEDIUM'} Priority
@@ -332,6 +349,9 @@ export const OwnerDashboard: React.FC = () => {
                   <div className="flex flex-wrap gap-2 text-[9px] pt-1">
                     <span className="font-extrabold bg-slate-100 px-1.5 py-0.5 rounded text-slate-700 border border-slate-200/40">
                       {task.category || 'TECHNICAL'}
+                    </span>
+                    <span className={`font-extrabold px-1.5 py-0.5 rounded border ${getFrequencyStyle(task.frequency)}`}>
+                      {task.frequency === 'ONE_TIME' ? 'One-Time' : task.frequency || 'One-Time'}
                     </span>
                     {task.estimatedHours && (
                       <span className="text-ink-muted font-bold flex items-center gap-1">

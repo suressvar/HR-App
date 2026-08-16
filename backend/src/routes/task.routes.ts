@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../utils/prisma';
 import { requireAuth, requireRole } from '../middleware/auth';
-import { Role, TaskStatus, Priority } from '@prisma/client';
+import { Role, TaskStatus, Priority, TaskFrequency } from '@prisma/client';
 import { updateOverdueTasks } from '../utils/taskHelper';
 import { sendMail } from '../services/email';
 
@@ -18,6 +18,7 @@ const createTaskSchema = z.object({
   priority: z.nativeEnum(Priority).optional(),
   estimatedHours: z.number().min(0, 'Estimated hours cannot be negative').nullable().optional(),
   category: z.string().nullable().optional(),
+  frequency: z.nativeEnum(TaskFrequency).optional(),
 });
 
 const updateTaskStatusSchema = z.object({
@@ -185,7 +186,7 @@ router.post('/', requireRole([Role.OWNER, Role.EMPLOYEE]), async (req: Request, 
       return res.status(400).json({ error: errorMessage });
     }
 
-    const { employeeId, title, description, dueDate, priority, estimatedHours, category } = parseResult.data;
+    const { employeeId, title, description, dueDate, priority, estimatedHours, category, frequency } = parseResult.data;
 
     const employeeExists = await prisma.employee.findUnique({
       where: { id: employeeId },
@@ -205,6 +206,7 @@ router.post('/', requireRole([Role.OWNER, Role.EMPLOYEE]), async (req: Request, 
         priority: priority || Priority.MEDIUM,
         estimatedHours: estimatedHours ?? null,
         category: category ?? null,
+        frequency: frequency || TaskFrequency.ONE_TIME,
       },
     });
 

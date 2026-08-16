@@ -26,6 +26,7 @@ export interface TaskItem {
   completionNotes?: string | null;
   completedAt?: string | null;
   createdAt: string;
+  frequency?: 'ONE_TIME' | 'DAILY' | 'WEEKLY' | 'YEARLY';
   employee?: {
     id: string;
     name: string;

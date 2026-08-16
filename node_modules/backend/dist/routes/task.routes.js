@@ -18,6 +18,7 @@ const createTaskSchema = zod_1.z.object({
     priority: zod_1.z.nativeEnum(client_1.Priority).optional(),
     estimatedHours: zod_1.z.number().min(0, 'Estimated hours cannot be negative').nullable().optional(),
     category: zod_1.z.string().nullable().optional(),
+    frequency: zod_1.z.nativeEnum(client_1.TaskFrequency).optional(),
 });
 const updateTaskStatusSchema = zod_1.z.object({
     status: zod_1.z.nativeEnum(client_1.TaskStatus),
@@ -159,7 +160,7 @@ router.post('/', (0, auth_1.requireRole)([client_1.Role.OWNER, client_1.Role.EMP
             const errorMessage = parseResult.error.issues.map((e) => e.message).join(', ');
             return res.status(400).json({ error: errorMessage });
         }
-        const { employeeId, title, description, dueDate, priority, estimatedHours, category } = parseResult.data;
+        const { employeeId, title, description, dueDate, priority, estimatedHours, category, frequency } = parseResult.data;
         const employeeExists = await prisma_1.prisma.employee.findUnique({
             where: { id: employeeId },
         });
@@ -176,6 +177,7 @@ router.post('/', (0, auth_1.requireRole)([client_1.Role.OWNER, client_1.Role.EMP
                 priority: priority || client_1.Priority.MEDIUM,
                 estimatedHours: estimatedHours ?? null,
                 category: category ?? null,
+                frequency: frequency || client_1.TaskFrequency.ONE_TIME,
             },
         });
         // Handle Email Notifications in the background (asynchronously)
