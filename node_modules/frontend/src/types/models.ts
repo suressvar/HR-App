@@ -27,6 +27,7 @@ export interface TaskItem {
   completedAt?: string | null;
   createdAt: string;
   frequency?: 'ONE_TIME' | 'DAILY' | 'WEEKLY' | 'YEARLY';
+  classification?: 'PENDING' | 'TEN_POINTS';
   employee?: {
     id: string;
     name: string;
@@ -53,4 +54,12 @@ export interface DashboardSummary {
   overdueTasks: number;
   employeeProgress?: EmployeeProgressItem[];
   recentSelfAllocatedTasks?: TaskItem[];
+}
+
+export interface TodoItem {
+  id: string;
+  userId: string;
+  title: string;
+  completed: boolean;
+  createdAt: string;
 }

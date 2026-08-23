@@ -17,10 +17,10 @@ export const OwnerAssignWork: React.FC = () => {
   const [dueDate, setDueDate] = useState('');
   const [frequency, setFrequency] = useState<'ONE_TIME' | 'DAILY' | 'WEEKLY' | 'YEARLY'>('ONE_TIME');
 
-  // Filter state
   const [filterEmployeeId, setFilterEmployeeId] = useState<string>('ALL');
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [filterFrequency, setFilterFrequency] = useState<string>('ALL');
+  const [activeTab, setActiveTab] = useState<'A_TO_Z' | 'TEN_POINTS' | 'PENDING'>('A_TO_Z');
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -73,6 +73,24 @@ export const OwnerAssignWork: React.FC = () => {
     },
   });
 
+  // PATCH /api/tasks/:id/classification mutation
+  const updateClassificationMutation = useMutation({
+    mutationFn: ({ id, classification }: { id: string; classification: string }) =>
+      fetchApi<TaskItem>(
+        `/tasks/${id}/classification`,
+        { method: 'PATCH', body: JSON.stringify({ classification }) },
+        token
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['ownerDashboard'] });
+      setFormError(null);
+    },
+    onError: (err: any) => {
+      setFormError(err.message || 'Failed to update task classification');
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!employeeId) {
@@ -94,8 +112,16 @@ export const OwnerAssignWork: React.FC = () => {
     if (filterEmployeeId !== 'ALL' && t.employeeId !== filterEmployeeId) return false;
     if (filterStatus !== 'ALL' && t.status !== filterStatus) return false;
     if (filterFrequency !== 'ALL' && (t.frequency || 'ONE_TIME') !== filterFrequency) return false;
+    
+    if (activeTab === 'TEN_POINTS' && t.classification !== 'TEN_POINTS') return false;
+    if (activeTab === 'PENDING' && (t.classification || 'PENDING') !== 'PENDING') return false;
+    
     return true;
   });
+
+  if (filteredTasks && activeTab === 'A_TO_Z') {
+    filteredTasks.sort((a, b) => a.title.localeCompare(b.title));
+  }
 
   return (
     <div className="space-y-6">
@@ -215,11 +241,45 @@ export const OwnerAssignWork: React.FC = () => {
 
       {/* Task List Section */}
       <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
+        {/* Navigation Tabs for A-Z, 10-Points, and Pending */}
+        <div className="border-b border-border bg-slate-50 flex items-center px-4">
+          <button
+            onClick={() => setActiveTab('A_TO_Z')}
+            className={`py-3 px-4 text-xs font-bold uppercase tracking-wider border-b-2 cursor-pointer transition-all ${
+              activeTab === 'A_TO_Z'
+                ? 'border-brand text-brand font-extrabold'
+                : 'border-transparent text-ink-muted hover:text-ink'
+            }`}
+          >
+            A to Z ({tasks?.length || 0})
+          </button>
+          <button
+            onClick={() => setActiveTab('TEN_POINTS')}
+            className={`py-3 px-4 text-xs font-bold uppercase tracking-wider border-b-2 cursor-pointer transition-all ${
+              activeTab === 'TEN_POINTS'
+                ? 'border-brand text-brand font-extrabold'
+                : 'border-transparent text-ink-muted hover:text-ink'
+            }`}
+          >
+            10 Points ({tasks?.filter(t => t.classification === 'TEN_POINTS').length || 0})
+          </button>
+          <button
+            onClick={() => setActiveTab('PENDING')}
+            className={`py-3 px-4 text-xs font-bold uppercase tracking-wider border-b-2 cursor-pointer transition-all ${
+              activeTab === 'PENDING'
+                ? 'border-brand text-brand font-extrabold'
+                : 'border-transparent text-ink-muted hover:text-ink'
+            }`}
+          >
+            Pending ({tasks?.filter(t => (t.classification || 'PENDING') === 'PENDING').length || 0})
+          </button>
+        </div>
+
         {/* Filters Header */}
         <div className="p-4 border-b border-border bg-slate-50/50 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <Filter className="w-4 h-4 text-ink-muted" />
-            <h3 className="text-sm font-bold text-ink">All Assigned Tasks</h3>
+            <h3 className="text-sm font-bold text-ink">Filtered Tasks</h3>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -280,6 +340,7 @@ export const OwnerAssignWork: React.FC = () => {
                   <th className="py-3.5 px-6">Employee</th>
                   <th className="py-3.5 px-6">Task Title & Description</th>
                   <th className="py-3.5 px-6">Due Date</th>
+                  <th className="py-3.5 px-6">Classification</th>
                   <th className="py-3.5 px-6">Status</th>
                 </tr>
               </thead>
@@ -310,13 +371,24 @@ export const OwnerAssignWork: React.FC = () => {
                         })}
                       </td>
                       <td className="py-4 px-6 whitespace-nowrap">
+                        <select
+                          value={t.classification || 'PENDING'}
+                          disabled={updateClassificationMutation.isPending}
+                          onChange={(e) => updateClassificationMutation.mutate({ id: t.id, classification: e.target.value })}
+                          className="px-3 py-1.5 rounded-lg border border-border text-xs font-semibold bg-white text-ink focus:outline-none focus:border-brand cursor-pointer hover:border-brand-accent transition-all disabled:opacity-75"
+                        >
+                          <option value="PENDING">Pending</option>
+                          <option value="TEN_POINTS">10-points</option>
+                        </select>
+                      </td>
+                      <td className="py-4 px-6 whitespace-nowrap">
                         <StatusBadge status={t.status} />
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={4} className="py-8 px-6 text-center text-ink-muted text-sm">
+                    <td colSpan={5} className="py-8 px-6 text-center text-ink-muted text-sm">
                       No tasks found matching your filters.
                     </td>
                   </tr>

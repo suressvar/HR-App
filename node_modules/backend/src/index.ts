@@ -8,6 +8,7 @@ import employeeRoutes from './routes/employee.routes';
 import taskRoutes from './routes/task.routes';
 import profileRoutes from './routes/profile.routes';
 import dashboardRoutes from './routes/dashboard.routes';
+import todoRoutes from './routes/todo.routes';
 
 dotenv.config();
 
@@ -38,6 +39,7 @@ apiRouter.use('/employees', employeeRoutes);
 apiRouter.use('/tasks', taskRoutes);
 apiRouter.use('/profile', profileRoutes);
 apiRouter.use('/dashboard', dashboardRoutes);
+apiRouter.use('/todos', todoRoutes);
 
 app.use('/api', apiRouter);
 

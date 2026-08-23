@@ -13,7 +13,8 @@ import { OwnerProfile } from './pages/owner/OwnerProfile';
 import { EmployeeDashboard } from './pages/employee/EmployeeDashboard';
 import { EmployeeTasks } from './pages/employee/EmployeeTasks';
 import { EmployeeProfile } from './pages/employee/EmployeeProfile';
-import { LayoutDashboard, Users, CheckSquare, User } from 'lucide-react';
+import { TodoPage } from './pages/TodoPage';
+import { LayoutDashboard, Users, CheckSquare, User, ListTodo } from 'lucide-react';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -28,12 +29,14 @@ const ownerNavItems: NavItem[] = [
   { label: 'Dashboard', path: '/owner/dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
   { label: 'Employees', path: '/owner/employees', icon: <Users className="w-4 h-4" /> },
   { label: 'Assign Work', path: '/owner/assign-work', icon: <CheckSquare className="w-4 h-4" /> },
+  { label: 'To-Do List', path: '/owner/todos', icon: <ListTodo className="w-4 h-4" /> },
   { label: 'Profile', path: '/owner/profile', icon: <User className="w-4 h-4" /> },
 ];
 
 const employeeNavItems: NavItem[] = [
   { label: 'Dashboard', path: '/employee/dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
   { label: 'My Tasks', path: '/employee/tasks', icon: <CheckSquare className="w-4 h-4" /> },
+  { label: 'To-Do List', path: '/employee/todos', icon: <ListTodo className="w-4 h-4" /> },
   { label: 'Profile', path: '/employee/profile', icon: <User className="w-4 h-4" /> },
 ];
 
@@ -58,6 +61,7 @@ export const App: React.FC = () => {
               <Route path="dashboard" element={<OwnerDashboard />} />
               <Route path="employees" element={<OwnerEmployees />} />
               <Route path="assign-work" element={<OwnerAssignWork />} />
+              <Route path="todos" element={<TodoPage />} />
               <Route path="profile" element={<OwnerProfile />} />
             </Route>
 
@@ -72,6 +76,7 @@ export const App: React.FC = () => {
             >
               <Route path="dashboard" element={<EmployeeDashboard />} />
               <Route path="tasks" element={<EmployeeTasks />} />
+              <Route path="todos" element={<TodoPage />} />
               <Route path="profile" element={<EmployeeProfile />} />
             </Route>
 

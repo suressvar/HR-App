@@ -27,6 +27,9 @@ export const EmployeeTasks: React.FC = () => {
   const [selectedTaskForReview, setSelectedTaskForReview] = useState<TaskItem | null>(null);
   const [completionNotes, setCompletionNotes] = useState('');
 
+  // Classification active tab state
+  const [activeTab, setActiveTab] = useState<'A_TO_Z' | 'TEN_POINTS' | 'PENDING'>('A_TO_Z');
+
   // GET /api/tasks/mine
   const { data: tasks, isLoading, isError, error } = useQuery<TaskItem[]>({
     queryKey: ['myTasks'],
@@ -44,15 +47,28 @@ export const EmployeeTasks: React.FC = () => {
     onSuccess: (updatedTask) => {
       queryClient.invalidateQueries({ queryKey: ['myTasks'] });
       queryClient.invalidateQueries({ queryKey: ['employeeDashboard'] });
-      setToastMessage(
-        updatedTask.status === 'IN_REVIEW'
-          ? `Submitted task "${updatedTask.title}" for review.`
-          : `Task "${updatedTask.title}" status updated to ${updatedTask.status}.`
-      );
       setErrorMessage(null);
     },
     onError: (err: any) => {
       setErrorMessage(err.message || 'Failed to update task status.');
+    },
+  });
+
+  // PATCH /api/tasks/:id/classification
+  const updateClassificationMutation = useMutation({
+    mutationFn: ({ id, classification }: { id: string; classification: string }) =>
+      fetchApi<TaskItem>(
+        `/tasks/${id}/classification`,
+        { method: 'PATCH', body: JSON.stringify({ classification }) },
+        token
+      ),
+    onSuccess: (updatedTask) => {
+      queryClient.invalidateQueries({ queryKey: ['myTasks'] });
+      queryClient.invalidateQueries({ queryKey: ['employeeDashboard'] });
+      setErrorMessage(null);
+    },
+    onError: (err: any) => {
+      setErrorMessage(err.message || 'Failed to update task classification.');
     },
   });
 
@@ -129,6 +145,24 @@ export const EmployeeTasks: React.FC = () => {
     });
   };
 
+  // Filter and sort tasks based on activeTab
+  const getFilteredTasks = () => {
+    if (!tasks) return [];
+    let filtered = [...tasks];
+    if (activeTab === 'TEN_POINTS') {
+      filtered = filtered.filter((t) => t.classification === 'TEN_POINTS');
+    } else if (activeTab === 'PENDING') {
+      filtered = filtered.filter((t) => (t.classification || 'PENDING') === 'PENDING');
+    }
+    // For 'A_TO_Z', we show all but sort them alphabetically by title
+    if (activeTab === 'A_TO_Z') {
+      filtered.sort((a, b) => a.title.localeCompare(b.title));
+    }
+    return filtered;
+  };
+
+  const filteredTasks = getFilteredTasks();
+
   const getPriorityStyle = (p?: string) => {
     switch (p) {
       case 'LOW':
@@ -193,9 +227,38 @@ export const EmployeeTasks: React.FC = () => {
       )}
 
       <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-border bg-slate-50/50 flex items-center gap-2">
-          <CheckSquare className="w-4 h-4 text-brand" />
-          <h2 className="text-sm font-bold text-ink">My Work Items</h2>
+        {/* Navigation Tabs for A-Z, 10-Points, and Pending */}
+        <div className="border-b border-border bg-slate-50/50 flex items-center px-4">
+          <button
+            onClick={() => setActiveTab('A_TO_Z')}
+            className={`py-3.5 px-4 text-xs font-bold uppercase tracking-wider border-b-2 cursor-pointer transition-all ${
+              activeTab === 'A_TO_Z'
+                ? 'border-brand text-brand'
+                : 'border-transparent text-ink-muted hover:text-ink'
+            }`}
+          >
+            A to Z ({tasks?.length || 0})
+          </button>
+          <button
+            onClick={() => setActiveTab('TEN_POINTS')}
+            className={`py-3.5 px-4 text-xs font-bold uppercase tracking-wider border-b-2 cursor-pointer transition-all ${
+              activeTab === 'TEN_POINTS'
+                ? 'border-brand text-brand'
+                : 'border-transparent text-ink-muted hover:text-ink'
+            }`}
+          >
+            10 Points ({tasks?.filter(t => t.classification === 'TEN_POINTS').length || 0})
+          </button>
+          <button
+            onClick={() => setActiveTab('PENDING')}
+            className={`py-3.5 px-4 text-xs font-bold uppercase tracking-wider border-b-2 cursor-pointer transition-all ${
+              activeTab === 'PENDING'
+                ? 'border-brand text-brand'
+                : 'border-transparent text-ink-muted hover:text-ink'
+            }`}
+          >
+            Pending ({tasks?.filter(t => (t.classification || 'PENDING') === 'PENDING').length || 0})
+          </button>
         </div>
 
         {isLoading ? (
@@ -213,12 +276,13 @@ export const EmployeeTasks: React.FC = () => {
                   <th className="py-3.5 px-6">Task Attributes</th>
                   <th className="py-3.5 px-6">Due Date</th>
                   <th className="py-3.5 px-6">Current Status</th>
+                  <th className="py-3.5 px-6">Classification</th>
                   <th className="py-3.5 px-6">Update Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border text-sm text-ink">
-                {tasks && tasks.length > 0 ? (
-                  tasks.map((task) => (
+                {filteredTasks && filteredTasks.length > 0 ? (
+                  filteredTasks.map((task) => (
                     <tr key={task.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="py-4 px-6 max-w-md">
                         <div className="font-semibold text-ink">{task.title}</div>
@@ -261,6 +325,17 @@ export const EmployeeTasks: React.FC = () => {
                       </td>
                       <td className="py-4 px-6 whitespace-nowrap">
                         <select
+                          value={task.classification || 'PENDING'}
+                          disabled={updateClassificationMutation.isPending}
+                          onChange={(e) => updateClassificationMutation.mutate({ id: task.id, classification: e.target.value })}
+                          className="px-3 py-1.5 rounded-lg border border-border text-xs font-semibold bg-white text-ink focus:outline-none focus:border-brand cursor-pointer hover:border-brand-accent transition-all disabled:opacity-75"
+                        >
+                          <option value="PENDING">Pending</option>
+                          <option value="TEN_POINTS">10-points</option>
+                        </select>
+                      </td>
+                      <td className="py-4 px-6 whitespace-nowrap">
+                        <select
                           value={task.status}
                           disabled={updateStatusMutation.isPending || task.status === 'COMPLETED'}
                           onChange={(e) => handleStatusChange(task, e.target.value)}
@@ -270,7 +345,7 @@ export const EmployeeTasks: React.FC = () => {
                           <option className="bg-white text-ink" value="IN_PROGRESS">In Progress</option>
                           <option className="bg-white text-ink" value="IN_REVIEW">Submit for Review</option>
                           {task.status === 'COMPLETED' && <option className="bg-white text-ink" value="COMPLETED">Completed (Approved)</option>}
-                          <option className="bg-white text-ink" value="OVERDUE" disabled>
+                          <option className="bg-white text-ink" value="OVERDUE">
                             Overdue
                           </option>
                         </select>
@@ -279,8 +354,8 @@ export const EmployeeTasks: React.FC = () => {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={5} className="py-8 px-6 text-center text-ink-muted text-sm">
-                      You currently have no tasks. Click "Self-Allocate Task" to create one.
+                    <td colSpan={6} className="py-8 px-6 text-center text-ink-muted text-sm">
+                      No tasks found in this section.
                     </td>
                   </tr>
                 )}

@@ -56,6 +56,15 @@ model Task {
   completedAt     DateTime?
   createdAt       DateTime      @default(now())
   frequency       TaskFrequency @default(ONE_TIME)
+  classification  String        @default("PENDING")
+}
+
+model Todo {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  completed Boolean  @default(false)
+  createdAt DateTime @default(now())
 }
 
 enum Role {

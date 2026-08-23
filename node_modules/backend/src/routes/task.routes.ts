@@ -162,6 +162,45 @@ router.patch('/:id/approve', requireRole(Role.OWNER), async (req: Request, res: 
   }
 });
 
+// PATCH /api/tasks/:id/classification (OWNER or EMPLOYEE)
+router.patch('/:id/classification', requireRole([Role.OWNER, Role.EMPLOYEE]), async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { classification } = req.body;
+
+    if (classification !== 'PENDING' && classification !== 'TEN_POINTS') {
+      return res.status(400).json({ error: 'Invalid classification value. Must be PENDING or TEN_POINTS.' });
+    }
+
+    const existingTask = await prisma.task.findUnique({
+      where: { id },
+    });
+
+    if (!existingTask) {
+      return res.status(404).json({ error: 'Task not found.' });
+    }
+
+    if (req.user?.role === Role.EMPLOYEE) {
+      const employee = await prisma.employee.findUnique({
+        where: { userId: req.user.userId },
+      });
+      if (!employee || existingTask.employeeId !== employee.id) {
+        return res.status(403).json({ error: 'Forbidden: You do not own this task.' });
+      }
+    }
+
+    const updatedTask = await prisma.task.update({
+      where: { id },
+      data: { classification },
+    });
+
+    return res.status(200).json(updatedTask);
+  } catch (error) {
+    console.error('Update task classification error:', error);
+    return res.status(500).json({ error: 'Failed to update task classification.' });
+  }
+});
+
 // POST /api/tasks (OWNER or EMPLOYEE self-allocation)
 router.post('/', requireRole([Role.OWNER, Role.EMPLOYEE]), async (req: Request, res: Response) => {
   try {
