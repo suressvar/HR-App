@@ -18,13 +18,55 @@ const createTaskSchema = z.object({
   priority: z.nativeEnum(Priority).optional(),
   estimatedHours: z.number().min(0, 'Estimated hours cannot be negative').nullable().optional(),
   category: z.string().nullable().optional(),
+  company: z.string().nullable().optional(),
   frequency: z.nativeEnum(TaskFrequency).optional(),
+  classification: z.string().optional(),
+  repeatDay: z.string().nullable().optional(),
+  forwardedToId: z.string().nullable().optional(),
+  forwardedFromId: z.string().nullable().optional(),
+  noOfEntry: z.coerce.number().int().min(0).nullable().optional(),
+  timePerEntry: z.coerce.number().min(0).nullable().optional(),
+  totalTime: z.coerce.number().min(0).nullable().optional(),
 });
 
 const updateTaskStatusSchema = z.object({
   status: z.nativeEnum(TaskStatus),
   completionNotes: z.string().nullable().optional(),
 });
+
+async function enrichTasksWithStaffInfo(tasks: any[]) {
+  const employeeIds = new Set<string>();
+  tasks.forEach((t) => {
+    if (t.forwardedFromId) employeeIds.add(t.forwardedFromId);
+    if (t.forwardedToId) employeeIds.add(t.forwardedToId);
+    if (t.employeeId) employeeIds.add(t.employeeId);
+  });
+
+  const employees = await prisma.employee.findMany({
+    where: { id: { in: Array.from(employeeIds) } },
+    select: { id: true, name: true, email: true, role: true },
+  });
+
+  const empMap = new Map(employees.map((e) => [e.id, e]));
+
+  return tasks.map((t) => {
+    const forwardedFromEmp = t.forwardedFromId ? empMap.get(t.forwardedFromId) : null;
+    const forwardedToEmp = t.forwardedToId ? empMap.get(t.forwardedToId) : null;
+    const assignedEmp = t.employeeId ? empMap.get(t.employeeId) : null;
+
+    const staff1Name = forwardedFromEmp ? forwardedFromEmp.name : (assignedEmp?.name || t.employee?.name || 'Self');
+    const staff2Name = forwardedToEmp ? forwardedToEmp.name : null;
+
+    return {
+      ...t,
+      company: t.company || 'ICC Industries',
+      forwardedFromName: forwardedFromEmp ? forwardedFromEmp.name : (t.forwardedFromId ? 'Colleague' : null),
+      forwardedToName: forwardedToEmp ? forwardedToEmp.name : (t.forwardedToId ? 'Colleague' : null),
+      staff1Name,
+      staff2Name,
+    };
+  });
+}
 
 // All task routes require authentication
 router.use(requireAuth);
@@ -45,13 +87,30 @@ router.get('/mine', requireRole(Role.EMPLOYEE), async (req: Request, res: Respon
     }
 
     const tasks = await prisma.task.findMany({
-      where: { employeeId: employee.id },
+      where: {
+        OR: [
+          { employeeId: employee.id },
+          { forwardedFromId: employee.id },
+          { forwardedToId: employee.id },
+        ],
+      },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        },
+      },
       orderBy: { dueDate: 'asc' },
     });
 
     const updatedTasks = await updateOverdueTasks(tasks);
+    const enrichedTasks = await enrichTasksWithStaffInfo(updatedTasks);
 
-    return res.status(200).json(updatedTasks);
+    return res.status(200).json(enrichedTasks);
   } catch (error) {
     console.error('Fetch my tasks error:', error);
     return res.status(500).json({ error: 'Failed to fetch your tasks.' });
@@ -90,7 +149,7 @@ router.patch('/:id/status', requireRole(Role.EMPLOYEE), async (req: Request, res
       return res.status(404).json({ error: 'Task not found.' });
     }
 
-    if (existingTask.employeeId !== employee.id) {
+    if (existingTask.employeeId !== employee.id && existingTask.forwardedFromId !== employee.id) {
       return res.status(403).json({ error: 'Forbidden: You do not own this task.' });
     }
 
@@ -166,10 +225,11 @@ router.patch('/:id/approve', requireRole(Role.OWNER), async (req: Request, res: 
 router.patch('/:id/classification', requireRole([Role.OWNER, Role.EMPLOYEE]), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { classification } = req.body;
+    const { classification, repeatDay } = req.body;
 
-    if (classification !== 'PENDING' && classification !== 'TEN_POINTS') {
-      return res.status(400).json({ error: 'Invalid classification value. Must be PENDING or TEN_POINTS.' });
+    const validClassifications = ['PENDING', 'TEN_POINTS', 'REGULAR', 'A_TO_Z'];
+    if (classification && !validClassifications.includes(classification)) {
+      return res.status(400).json({ error: 'Invalid classification value. Must be PENDING, TEN_POINTS, or REGULAR.' });
     }
 
     const existingTask = await prisma.task.findUnique({
@@ -184,14 +244,17 @@ router.patch('/:id/classification', requireRole([Role.OWNER, Role.EMPLOYEE]), as
       const employee = await prisma.employee.findUnique({
         where: { userId: req.user.userId },
       });
-      if (!employee || existingTask.employeeId !== employee.id) {
+      if (!employee || (existingTask.employeeId !== employee.id && existingTask.forwardedFromId !== employee.id)) {
         return res.status(403).json({ error: 'Forbidden: You do not own this task.' });
       }
     }
 
     const updatedTask = await prisma.task.update({
       where: { id },
-      data: { classification },
+      data: {
+        ...(classification !== undefined && { classification }),
+        ...(repeatDay !== undefined && { repeatDay }),
+      },
     });
 
     return res.status(200).json(updatedTask);
@@ -225,7 +288,7 @@ router.post('/', requireRole([Role.OWNER, Role.EMPLOYEE]), async (req: Request, 
       return res.status(400).json({ error: errorMessage });
     }
 
-    const { employeeId, title, description, dueDate, priority, estimatedHours, category, frequency } = parseResult.data;
+    const { employeeId, title, description, dueDate, priority, estimatedHours, category, company, frequency, classification, repeatDay, forwardedToId, forwardedFromId, noOfEntry, timePerEntry, totalTime } = parseResult.data;
 
     const employeeExists = await prisma.employee.findUnique({
       where: { id: employeeId },
@@ -245,7 +308,15 @@ router.post('/', requireRole([Role.OWNER, Role.EMPLOYEE]), async (req: Request, 
         priority: priority || Priority.MEDIUM,
         estimatedHours: estimatedHours ?? null,
         category: category ?? null,
+        company: company || 'ICC Industries',
         frequency: frequency || TaskFrequency.ONE_TIME,
+        classification: classification || 'REGULAR',
+        repeatDay: repeatDay ?? null,
+        forwardedToId: forwardedToId || null,
+        forwardedFromId: forwardedFromId || null,
+        noOfEntry: noOfEntry ?? null,
+        timePerEntry: timePerEntry ?? null,
+        totalTime: totalTime ?? null,
       },
     });
 
@@ -336,11 +407,177 @@ router.get('/', requireRole(Role.OWNER), async (req: Request, res: Response) => 
     });
 
     const updatedTasks = await updateOverdueTasks(tasks);
+    const enrichedTasks = await enrichTasksWithStaffInfo(updatedTasks);
 
-    return res.status(200).json(updatedTasks);
+    return res.status(200).json(enrichedTasks);
   } catch (error) {
     console.error('List tasks error:', error);
     return res.status(500).json({ error: 'Failed to fetch tasks.' });
+  }
+});
+
+// GET /api/tasks/employees-list — Retrieve employees for forwarding
+router.get('/employees-list', async (req: Request, res: Response) => {
+  try {
+    const employees = await prisma.employee.findMany({
+      where: { status: 'ACTIVE' },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+    return res.status(200).json(employees);
+  } catch (error) {
+    console.error('Fetch employees list error:', error);
+    return res.status(500).json({ error: 'Failed to fetch employees list.' });
+  }
+});
+
+// PATCH /api/tasks/:id/forward — Forward a task to another employee
+router.patch('/:id/forward', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { forwardedToId } = req.body;
+
+    if (!forwardedToId) {
+      return res.status(400).json({ error: 'forwardedToId is required.' });
+    }
+
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+
+    const senderEmployee = await prisma.employee.findUnique({
+      where: { userId: req.user.userId },
+    });
+
+    if (!senderEmployee) {
+      return res.status(404).json({ error: 'Sender employee profile not found.' });
+    }
+
+    const existingTask = await prisma.task.findUnique({
+      where: { id },
+    });
+
+    if (!existingTask) {
+      return res.status(404).json({ error: 'Task not found.' });
+    }
+
+    if (existingTask.employeeId !== senderEmployee.id) {
+      return res.status(403).json({ error: 'Forbidden: You do not own this task.' });
+    }
+
+    const recipientEmployee = await prisma.employee.findUnique({
+      where: { id: forwardedToId },
+    });
+
+    if (!recipientEmployee) {
+      return res.status(404).json({ error: 'Recipient employee profile not found.' });
+    }
+
+    const updatedTask = await prisma.task.update({
+      where: { id },
+      data: {
+        forwardedToId,
+        forwardedFromId: senderEmployee.id,
+      },
+    });
+
+    return res.status(200).json(updatedTask);
+  } catch (error) {
+    console.error('Forward task error:', error);
+    return res.status(500).json({ error: 'Failed to forward task.' });
+  }
+});
+
+// GET /api/tasks/forwarded — Get tasks forwarded to the current employee
+router.get('/forwarded', async (req: Request, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+
+    const employee = await prisma.employee.findUnique({
+      where: { userId: req.user.userId },
+    });
+
+    if (!employee) {
+      return res.status(404).json({ error: 'Employee profile not found.' });
+    }
+
+    const tasks = await prisma.task.findMany({
+      where: { forwardedToId: employee.id },
+      orderBy: { dueDate: 'asc' },
+    });
+
+    const tasksWithSender = await Promise.all(
+      tasks.map(async (t) => {
+        let senderName = 'Unknown Employee';
+        if (t.forwardedFromId) {
+          const sender = await prisma.employee.findUnique({
+            where: { id: t.forwardedFromId },
+            select: { name: true },
+          });
+          if (sender) senderName = sender.name;
+        }
+        return {
+          ...t,
+          forwardedFromName: senderName,
+        };
+      })
+    );
+
+    return res.status(200).json(tasksWithSender);
+  } catch (error) {
+    console.error('Fetch forwarded tasks error:', error);
+    return res.status(500).json({ error: 'Failed to fetch forwarded tasks.' });
+  }
+});
+
+// PATCH /api/tasks/:id/accept-forward — Accept a forwarded task
+router.patch('/:id/accept-forward', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+
+    const employee = await prisma.employee.findUnique({
+      where: { userId: req.user.userId },
+    });
+
+    if (!employee) {
+      return res.status(404).json({ error: 'Employee profile not found.' });
+    }
+
+    const existingTask = await prisma.task.findUnique({
+      where: { id },
+    });
+
+    if (!existingTask) {
+      return res.status(404).json({ error: 'Task not found.' });
+    }
+
+    if (existingTask.forwardedToId !== employee.id) {
+      return res.status(403).json({ error: 'Forbidden: This task was not forwarded to you.' });
+    }
+
+    const updatedTask = await prisma.task.update({
+      where: { id },
+      data: {
+        employeeId: employee.id,
+        forwardedToId: null,
+      },
+    });
+
+    return res.status(200).json(updatedTask);
+  } catch (error) {
+    console.error('Accept forward task error:', error);
+    return res.status(500).json({ error: 'Failed to accept forwarded task.' });
   }
 });
 

@@ -23,17 +23,28 @@ export interface TaskItem {
   priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
   estimatedHours?: number | null;
   category?: string | null;
+  company?: string | null;
   completionNotes?: string | null;
   completedAt?: string | null;
   createdAt: string;
-  frequency?: 'ONE_TIME' | 'DAILY' | 'WEEKLY' | 'YEARLY';
-  classification?: 'PENDING' | 'TEN_POINTS';
+  frequency?: 'ONE_TIME' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
+  classification?: 'REGULAR' | 'TEN_POINTS' | 'PENDING' | 'A_TO_Z' | string;
+  repeatDay?: string | null;
   employee?: {
     id: string;
     name: string;
     email: string;
     role: string;
   };
+  forwardedToId?: string | null;
+  forwardedFromId?: string | null;
+  forwardedFromName?: string | null;
+  forwardedToName?: string | null;
+  staff1Name?: string | null;
+  staff2Name?: string | null;
+  noOfEntry?: number | null;
+  timePerEntry?: number | null;
+  totalTime?: number | null;
 }
 
 export interface EmployeeProgressItem {

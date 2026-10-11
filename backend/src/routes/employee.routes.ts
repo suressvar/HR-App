@@ -11,7 +11,7 @@ const router = Router();
 
 const createEmployeeSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  email: z.string().email('Invalid email address'),
+  username: z.string().min(1, 'Username is required'),
   phone: z.string().min(1, 'Phone is required'),
   address: z.string().min(1, 'Address is required'),
   role: z.string().min(1, 'Role title is required'),
@@ -29,15 +29,15 @@ router.post('/', async (req: Request, res: Response) => {
       return res.status(400).json({ error: errorMessage });
     }
 
-    const { name, email, phone, address, role } = parseResult.data;
+    const { name, username, phone, address, role } = parseResult.data;
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
-      where: { email },
+      where: { email: username },
     });
 
     if (existingUser) {
-      return res.status(400).json({ error: 'A user with this email already exists.' });
+      return res.status(400).json({ error: 'A user with this username already exists.' });
     }
 
     // Generate temporary password
@@ -48,7 +48,7 @@ router.post('/', async (req: Request, res: Response) => {
     const result = await prisma.$transaction(async (tx) => {
       const newUser = await tx.user.create({
         data: {
-          email,
+          email: username,
           passwordHash,
           role: Role.EMPLOYEE,
         },
@@ -58,7 +58,7 @@ router.post('/', async (req: Request, res: Response) => {
         data: {
           userId: newUser.id,
           name,
-          email,
+          email: username,
           phone,
           address,
           role,
@@ -148,6 +148,76 @@ router.get('/:id', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Get employee detail error:', error);
     return res.status(500).json({ error: 'Failed to fetch employee details.' });
+  }
+});
+
+// DELETE /api/employees/:id — Delete an employee, their tasks, and their User account
+router.delete('/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const employee = await prisma.employee.findUnique({
+      where: { id },
+    });
+
+    if (!employee) {
+      return res.status(404).json({ error: 'Employee not found.' });
+    }
+
+    // Delete tasks, employee profile, and user account in a transaction
+    await prisma.$transaction(async (tx) => {
+      // 1. Delete all tasks associated with employee (assigned, forwarded, or created by them)
+      await tx.task.deleteMany({
+        where: {
+          OR: [
+            { employeeId: id },
+            { forwardedToId: id },
+            { forwardedFromId: id },
+          ],
+        },
+      });
+
+      // 2. Delete employee profile
+      await tx.employee.delete({
+        where: { id },
+      });
+
+      // 3. Delete corresponding login User account
+      await tx.user.delete({
+        where: { id: employee.userId },
+      });
+    });
+
+    return res.status(200).json({ message: 'Employee and all associated tasks deleted successfully.' });
+  } catch (error) {
+    console.error('Delete employee error:', error);
+    return res.status(500).json({ error: 'Failed to delete employee.' });
+  }
+});
+
+// POST /api/employees/reset-all — Reset all system data (Delete all tasks, todos, and employees except the owner user/profile)
+router.post('/reset-all', async (req: Request, res: Response) => {
+  try {
+    await prisma.$transaction(async (tx) => {
+      // 1. Delete all tasks
+      await tx.task.deleteMany({});
+
+      // 2. Delete all checklist/todos
+      await tx.todo.deleteMany({});
+
+      // 3. Delete all employees
+      await tx.employee.deleteMany({});
+
+      // 4. Delete all users whose role is EMPLOYEE (preserve OWNER users)
+      await tx.user.deleteMany({
+        where: { role: Role.EMPLOYEE },
+      });
+    });
+
+    return res.status(200).json({ message: 'All company data, checklist items, and employee profiles have been reset.' });
+  } catch (error) {
+    console.error('Reset all data error:', error);
+    return res.status(500).json({ error: 'Failed to reset system data.' });
   }
 });
 

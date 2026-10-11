@@ -12,6 +12,7 @@ const employee_routes_1 = __importDefault(require("./routes/employee.routes"));
 const task_routes_1 = __importDefault(require("./routes/task.routes"));
 const profile_routes_1 = __importDefault(require("./routes/profile.routes"));
 const dashboard_routes_1 = __importDefault(require("./routes/dashboard.routes"));
+const todo_routes_1 = __importDefault(require("./routes/todo.routes"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
@@ -34,6 +35,7 @@ apiRouter.use('/employees', employee_routes_1.default);
 apiRouter.use('/tasks', task_routes_1.default);
 apiRouter.use('/profile', profile_routes_1.default);
 apiRouter.use('/dashboard', dashboard_routes_1.default);
+apiRouter.use('/todos', todo_routes_1.default);
 app.use('/api', apiRouter);
 if (process.env.NODE_ENV !== 'test') {
     app.listen(PORT, () => {

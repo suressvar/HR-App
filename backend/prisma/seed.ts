@@ -7,42 +7,105 @@ dotenv.config();
 const prisma = new PrismaClient();
 
 async function main() {
-  const email = process.env.OWNER_SEED_EMAIL || 'owner@iccindustries.com';
-  const rawPassword = process.env.OWNER_SEED_PASSWORD || 'OwnerSecurePassword123!';
+  const ownerEmail = process.env.OWNER_SEED_EMAIL || 'owner';
+  const rawOwnerPassword = process.env.OWNER_SEED_PASSWORD || 'owner123';
+  const empEmail = process.env.EMPLOYEE_SEED_EMAIL || 'sur';
+  const rawEmpPassword = process.env.EMPLOYEE_SEED_PASSWORD || 'sur123';
 
-  console.log(`Seeding database with Owner account: ${email}...`);
+  console.log(`Seeding database with Owner (${ownerEmail}) and Employee (${empEmail})...`);
 
-  const existingUser = await prisma.user.findUnique({
-    where: { email },
+  // 1. Seed or update Owner account
+  const ownerPasswordHash = await bcrypt.hash(rawOwnerPassword, 10);
+  const existingOwner = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { email: { equals: ownerEmail, mode: 'insensitive' } },
+        { role: Role.OWNER },
+      ],
+    },
+    include: { owner: true },
   });
 
-  if (existingUser) {
-    console.log('Owner account already exists, skipping seed.');
-    return;
-  }
-
-  const passwordHash = await bcrypt.hash(rawPassword, 10);
-
-  const user = await prisma.user.create({
-    data: {
-      email,
-      passwordHash,
-      role: Role.OWNER,
-      owner: {
-        create: {
-          name: 'ICC Executive Owner',
-          email,
-          phone: '+1-555-0199',
-          personalInfo: 'Primary System Administrator & Owner Account',
+  if (!existingOwner) {
+    await prisma.user.create({
+      data: {
+        email: ownerEmail,
+        passwordHash: ownerPasswordHash,
+        role: Role.OWNER,
+        owner: {
+          create: {
+            name: 'Owner',
+            email: ownerEmail,
+            phone: '+1-555-0199',
+            personalInfo: 'Primary System Administrator & Owner Account',
+          },
         },
       },
+    });
+    console.log(`Successfully created Owner account: ${ownerEmail}`);
+  } else {
+    await prisma.user.update({
+      where: { id: existingOwner.id },
+      data: {
+        email: ownerEmail,
+        passwordHash: ownerPasswordHash,
+      },
+    });
+    console.log(`Successfully updated Owner account credentials: ${ownerEmail}`);
+  }
+
+  // 2. Seed or update Employee account (sur)
+  const empPasswordHash = await bcrypt.hash(rawEmpPassword, 10);
+  const existingEmp = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { email: { equals: empEmail, mode: 'insensitive' } },
+        { employee: { name: { equals: empEmail, mode: 'insensitive' } } },
+      ],
     },
-    include: {
-      owner: true,
-    },
+    include: { employee: true },
   });
 
-  console.log(`Successfully seeded Owner user (ID: ${user.id}) with OwnerProfile.`);
+  if (!existingEmp) {
+    const newEmp = await prisma.user.create({
+      data: {
+        email: empEmail,
+        passwordHash: empPasswordHash,
+        role: Role.EMPLOYEE,
+        employee: {
+          create: {
+            name: empEmail,
+            email: empEmail,
+            phone: '+1-555-0100',
+            address: 'ICC Industries HQ',
+            role: 'Employee',
+            status: 'ACTIVE',
+          },
+        },
+      },
+      include: { employee: true },
+    });
+    console.log(`Successfully created Employee user: ${empEmail} (Name: ${newEmp.employee?.name})`);
+  } else {
+    await prisma.user.update({
+      where: { id: existingEmp.id },
+      data: {
+        email: empEmail,
+        passwordHash: empPasswordHash,
+      },
+    });
+    if (existingEmp.employee) {
+      await prisma.employee.update({
+        where: { id: existingEmp.employee.id },
+        data: {
+          name: empEmail,
+          email: empEmail,
+          status: 'ACTIVE',
+        },
+      });
+    }
+    console.log(`Successfully updated Employee account: ${empEmail} with password`);
+  }
 }
 
 main()

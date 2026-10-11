@@ -7,7 +7,7 @@ interface AuthContextType {
   role: 'OWNER' | 'EMPLOYEE' | null;
   token: string | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<User>;
+  login: (username: string, password: string) => Promise<User>;
   logout: () => void;
 }
 
@@ -36,10 +36,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     restoreSession();
   }, []);
 
-  const login = async (email: string, password: string): Promise<User> => {
+  const login = async (username: string, password: string): Promise<User> => {
     const data = await fetchApi<LoginResponse>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ username, password }),
     });
 
     setToken(data.accessToken);

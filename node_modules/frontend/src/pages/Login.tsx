@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Building2, Lock, Mail, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { FileSpreadsheet, Lock, User, AlertCircle, Eye, EyeOff, ArrowRight } from 'lucide-react';
 
 export const Login: React.FC = () => {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -19,105 +19,128 @@ export const Login: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      const user = await login(email, password);
+      const user = await login(username, password);
       if (user.role === 'OWNER') {
         navigate('/owner/dashboard');
       } else {
         navigate('/employee/dashboard');
       }
     } catch (err: any) {
-      setError(err.message || 'Invalid email or password');
+      setError(err.message || 'Invalid username or password');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#FAF8FF] px-4 font-sans">
-      <div className="max-w-md w-full bg-white rounded-xl shadow-xl shadow-purple-900/5 border border-border p-8">
-        {/* Header / Logo */}
-        <div className="flex flex-col items-center text-center mb-8">
-          <div className="w-12 h-12 rounded-xl bg-brand-light flex items-center justify-center text-brand mb-3 shadow-inner">
-            <Building2 className="w-7 h-7" />
-          </div>
-          <h1 className="text-xl font-bold text-ink tracking-tight">ICC INDUSTRIES COMPANY</h1>
-          <p className="text-sm text-ink-muted mt-1 font-medium">HR Portal Management System</p>
+    <div className="min-h-screen flex flex-col justify-between bg-[#f3f4f6] font-sans select-none">
+      {/* Excel Top Bar */}
+      <div className="bg-[#107c41] text-white px-4 py-2 flex items-center justify-between text-xs shadow-md">
+        <div className="flex items-center gap-2">
+          <FileSpreadsheet className="w-5 h-5 text-emerald-200" />
+          <span className="font-bold text-sm">ICC Employee Management</span>
         </div>
+        <span className="text-emerald-100 hidden sm:inline">Version 2026 • Single Click Access</span>
+      </div>
 
-        {/* Inline Error Message */}
-        {error && (
-          <div className="mb-6 p-3.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm flex items-center gap-2 animate-shake">
-            <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {/* Login Form */}
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div>
-            <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wider mb-2">
-              Corporate Email Address
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-ink-muted">
-                <Mail className="w-4 h-4" />
-              </div>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@iccindustries.com"
-                className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-border focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand-light text-sm transition-all"
-              />
+      {/* Center Excel Login Dialog */}
+      <div className="flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-white rounded-xl border border-slate-300 shadow-xl overflow-hidden">
+          {/* Header */}
+          <div className="bg-[#107c41] text-white px-6 py-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-[#0b5a2f] flex items-center justify-center text-white font-bold text-lg shadow-inner">
+              <FileSpreadsheet className="w-6 h-6 text-emerald-200" />
+            </div>
+            <div>
+              <h1 className="font-bold text-base text-white">Sign In to Workbook</h1>
+              <p className="text-xs text-emerald-100">ICC INDUSTRIES COMPANY</p>
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wider mb-2">
-              Password
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-ink-muted">
-                <Lock className="w-4 h-4" />
+          <div className="p-6">
+            {/* Error */}
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+                <span>{error}</span>
               </div>
-              <input
-                type={showPassword ? "text" : "password"}
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••••••"
-                className="w-full pl-10 pr-12 py-2.5 rounded-lg border border-border focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand-light text-sm transition-all"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-ink-muted hover:text-brand focus:outline-none"
-              >
-                {showPassword ? (
-                  <EyeOff className="w-4.5 h-4.5 animate-fade-in" />
-                ) : (
-                  <Eye className="w-4.5 h-4.5 animate-fade-in" />
-                )}
-              </button>
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full py-3 px-4 bg-brand hover:bg-brand-hover text-white font-semibold rounded-lg shadow-md shadow-purple-600/20 transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-70 mt-2"
-          >
-            {isSubmitting ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                <span>Signing in...</span>
-              </>
-            ) : (
-              <span>Sign In to Portal</span>
             )}
-          </button>
-        </form>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Username / Email
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <User className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Enter your username (e.g. owner or sur)"
+                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 rounded-lg border border-slate-300 focus:outline-none focus:border-[#107c41] focus:ring-2 focus:ring-emerald-100 text-sm text-slate-900 transition-all"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Password
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    className="w-full pl-9 pr-10 py-2.5 bg-slate-50 rounded-lg border border-slate-300 focus:outline-none focus:border-[#107c41] focus:ring-2 focus:ring-emerald-100 text-sm text-slate-900 transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full py-3 px-4 bg-[#107c41] hover:bg-[#0b5a2f] text-white font-bold rounded-lg shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 text-sm"
+                >
+                  {isSubmitting ? (
+                    <span>Opening Workbook...</span>
+                  ) : (
+                    <>
+                      <span>Open Workspace</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <div className="bg-slate-100 px-6 py-2.5 border-t border-slate-200 text-xs text-slate-500 text-center">
+            Authorized Personnel Only • ICC Industries
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom info bar */}
+      <div className="bg-white border-t border-slate-300 px-4 py-1.5 flex items-center justify-between text-xs text-slate-500">
+        <span>ICC Industries Management</span>
+        <span>Ready • Excel Sheet Model</span>
       </div>
     </div>
   );

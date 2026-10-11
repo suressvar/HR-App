@@ -11,7 +11,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'default_secret';
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'default_refresh_secret';
 
 const loginSchema = z.object({
-  email: z.string().email('Invalid email address'),
+  username: z.string().min(1, 'Username or email is required'),
   password: z.string().min(1, 'Password is required'),
 });
 
@@ -24,23 +24,89 @@ router.post('/login', async (req: Request, res: Response) => {
       return res.status(400).json({ error: errorMessage });
     }
 
-    const { email, password } = parseResult.data;
+    const { username, password } = parseResult.data;
+    const cleanUsername = username.trim();
 
-    const user = await prisma.user.findUnique({
-      where: { email },
-      include: {
-        employee: true,
-        owner: true,
+    let user = null;
+
+    // 1. Try to find active employee by name or email (case-insensitive)
+    const employee = await prisma.employee.findFirst({
+      where: {
+        OR: [
+          { name: { equals: cleanUsername, mode: 'insensitive' } },
+          { email: { equals: cleanUsername, mode: 'insensitive' } },
+        ],
       },
     });
 
+    if (employee) {
+      user = await prisma.user.findUnique({
+        where: { id: employee.userId },
+        include: {
+          employee: true,
+          owner: true,
+        },
+      });
+    }
+
+    // 2. Try to find owner profile by name or email (case-insensitive)
     if (!user) {
-      return res.status(401).json({ error: 'Invalid email or password.' });
+      const owner = await prisma.ownerProfile.findFirst({
+        where: {
+          OR: [
+            { name: { equals: cleanUsername, mode: 'insensitive' } },
+            { email: { equals: cleanUsername, mode: 'insensitive' } },
+          ],
+        },
+      });
+
+      if (owner) {
+        user = await prisma.user.findUnique({
+          where: { id: owner.userId },
+          include: {
+            employee: true,
+            owner: true,
+          },
+        });
+      }
+    }
+
+    // 3. Fallback: Try to find by user email (case-insensitive)
+    if (!user) {
+      user = await prisma.user.findFirst({
+        where: {
+          email: {
+            equals: cleanUsername,
+            mode: 'insensitive',
+          },
+        },
+        include: {
+          employee: true,
+          owner: true,
+        },
+      });
+    }
+
+    // 4. Employee alias fallback (e.g. employee / employe)
+    if (!user && (cleanUsername.toLowerCase() === 'employee' || cleanUsername.toLowerCase() === 'employe')) {
+      user = await prisma.user.findFirst({
+        where: {
+          role: Role.EMPLOYEE,
+        },
+        include: {
+          employee: true,
+          owner: true,
+        },
+      });
+    }
+
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid username or password.' });
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
     if (!isPasswordValid) {
-      return res.status(401).json({ error: 'Invalid email or password.' });
+      return res.status(401).json({ error: 'Invalid username or password.' });
     }
 
     const payload = { userId: user.id, role: user.role };

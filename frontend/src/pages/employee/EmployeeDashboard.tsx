@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { fetchApi } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import type { DashboardSummary } from '../../types/models';
-import { Clock, CheckCircle2, AlertTriangle, Hourglass, ArrowRight } from 'lucide-react';
+import { Clock, CheckCircle2, AlertTriangle, Hourglass, ArrowRight, FileSpreadsheet, PlusCircle } from 'lucide-react';
 
 export const EmployeeDashboard: React.FC = () => {
   const { token } = useAuth();
@@ -16,91 +16,127 @@ export const EmployeeDashboard: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-brand border-t-transparent rounded-full animate-spin"></div>
+      <div className="flex flex-col items-center justify-center h-64 text-xs">
+        <div className="w-8 h-8 border-4 border-[#107c41] border-t-transparent rounded-full animate-spin mb-3"></div>
+        <span className="text-[#107c41] font-bold">Loading Employee Sheet...</span>
       </div>
     );
   }
 
   if (isError) {
     return (
-      <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm">
+      <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs">
         Failed to load metrics: {(error as Error).message}
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-ink tracking-tight">My Workspace Dashboard</h1>
-        <p className="text-ink-muted text-sm mt-1">Overview of your self-allocated tasks, active progress, and workspace metrics.</p>
+    <div className="space-y-4 max-w-7xl mx-auto font-sans">
+      {/* Excel Sheet Banner */}
+      <div className="bg-white border border-slate-300 rounded-lg p-3.5 shadow-xs flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded bg-[#107c41] flex items-center justify-center text-white font-bold">
+            <FileSpreadsheet className="w-5 h-5" />
+          </div>
+          <div>
+            <h1 className="text-base font-bold text-slate-900">Workspace Summary</h1>
+          </div>
+        </div>
+
+        <Link
+          to="/employee/tasks/a-to-z"
+          className="px-3.5 py-1.5 bg-[#107c41] hover:bg-[#0b5a2f] text-white font-bold rounded-lg text-xs shadow-xs flex items-center gap-1.5 transition-colors"
+        >
+          <PlusCircle className="w-4 h-4" />
+          <span>Allocate Task</span>
+        </Link>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        {/* Total / Pending Tasks */}
-        <div className="bg-white rounded-xl border border-border p-6 shadow-sm hover:shadow-md transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-ink-muted uppercase tracking-wider">Total Allocated</span>
-            <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700">
-              <Hourglass className="w-5 h-5" />
-            </div>
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* Total Tasks */}
+        <Link
+          to="/employee/tasks/a-to-z"
+          className="bg-white rounded-lg border border-slate-300 hover:border-[#107c41] p-3.5 shadow-xs hover:shadow-md transition-all group flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+            <span className="text-xs font-bold text-slate-600 uppercase">Total Tasks</span>
+            <Hourglass className="w-4 h-4 text-[#107c41]" />
           </div>
-          <p className="text-3xl font-extrabold text-ink mt-4">{data?.totalTasks ?? 0}</p>
-          <span className="inline-block text-xs font-medium text-ink-muted mt-2">Self-allocated tasks</span>
+          <div className="my-2">
+            <span className="text-3xl font-black text-slate-900">{data?.totalTasks ?? 0}</span>
+            <span className="text-xs text-slate-500 ml-2">Allocated Tasks</span>
+          </div>
+          <div className="text-[16px] text-[#107c41] bg-emerald-50 px-2 py-1 rounded flex items-center justify-between font-semibold">
+            <span>View Tasks Sheet</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </div>
+        </Link>
+
+        {/* In Progress */}
+        <div className="bg-white rounded-lg border border-slate-300 p-3.5 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+            <span className="text-xs font-bold text-slate-600 uppercase">Active Progress</span>
+            <Clock className="w-4 h-4 text-sky-600" />
+          </div>
+          <div className="my-2">
+            <span className="text-3xl font-black text-sky-700">
+              {data?.totalTasks ? data.totalTasks - ((data.completedTasks || 0) + (data.overdueTasks || 0)) : 0}
+            </span>
+            <span className="text-xs text-slate-500 ml-2">Currently Working</span>
+          </div>
+          <div className="text-[16px] text-sky-700 bg-sky-50 px-2 py-1 rounded font-semibold">
+            In Progress
+          </div>
         </div>
 
-        {/* In Progress Tasks */}
-        <div className="bg-white rounded-xl border border-border p-6 shadow-sm hover:shadow-md transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-ink-muted uppercase tracking-wider">Active Progress</span>
-            <div className="w-10 h-10 rounded-lg bg-brand-light flex items-center justify-center text-brand">
-              <Clock className="w-5 h-5" />
-            </div>
+        {/* Completed */}
+        <div className="bg-white rounded-lg border border-slate-300 p-3.5 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+            <span className="text-xs font-bold text-slate-600 uppercase">Completed</span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           </div>
-          <p className="text-3xl font-extrabold text-brand mt-4">{data?.totalTasks ? data.totalTasks - (data.completedTasks + data.overdueTasks) : 0}</p>
-          <span className="inline-block text-xs font-medium text-ink-muted mt-2">Currently being worked on</span>
+          <div className="my-2">
+            <span className="text-3xl font-black text-emerald-700">{data?.completedTasks ?? 0}</span>
+            <span className="text-xs text-slate-500 ml-2">Completed Tasks</span>
+          </div>
+          <div className="text-[16px] text-emerald-800 bg-emerald-50 px-2 py-1 rounded font-semibold">
+            {data?.totalTasks ? `${Math.round(((data.completedTasks || 0) / data.totalTasks) * 100)}% Finished` : '0%'}
+          </div>
         </div>
 
-        {/* Completed Tasks */}
-        <div className="bg-white rounded-xl border border-border p-6 shadow-sm hover:shadow-md transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-ink-muted uppercase tracking-wider">Completed</span>
-            <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700">
-              <CheckCircle2 className="w-5 h-5" />
-            </div>
+        {/* Overdue */}
+        <Link
+          to="/employee/tasks/pending"
+          className="bg-white rounded-lg border border-red-200 hover:border-red-400 p-3.5 shadow-xs hover:shadow-md transition-all group flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between border-b border-red-100 pb-2">
+            <span className="text-xs font-bold text-red-700 uppercase">Overdue</span>
+            <AlertTriangle className="w-4 h-4 text-red-600" />
           </div>
-          <p className="text-3xl font-extrabold text-emerald-600 mt-4">{data?.completedTasks ?? 0}</p>
-          <span className="inline-block text-xs font-medium text-ink-muted mt-2">Completed deliverables</span>
-        </div>
-
-        {/* Overdue Tasks */}
-        <div className="bg-white rounded-xl border border-border p-6 shadow-sm hover:shadow-md transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-ink-muted uppercase tracking-wider">Overdue</span>
-            <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center text-red-700">
-              <AlertTriangle className="w-5 h-5" />
-            </div>
+          <div className="my-2">
+            <span className="text-3xl font-black text-red-600">{data?.overdueTasks ?? 0}</span>
+            <span className="text-xs text-slate-500 ml-2">Action Required</span>
           </div>
-          <p className="text-3xl font-extrabold text-red-600 mt-4">{data?.overdueTasks ?? 0}</p>
-          <span className="inline-block text-xs font-medium text-ink-muted mt-2">Requires immediate action</span>
-        </div>
+          <div className="text-[16px] text-red-700 bg-red-50 px-2 py-1 rounded flex items-center justify-between font-semibold">
+            <span>Review Pending</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </div>
+        </Link>
       </div>
 
-      {/* Quick Action Info Card */}
-      <div className="bg-gradient-to-r from-purple-500/5 via-brand/5 to-pink-500/5 rounded-xl border border-brand/10 p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      {/* Helpful Instruction Box */}
+      <div className="bg-white rounded-lg border border-slate-300 p-4 shadow-xs flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h2 className="font-bold text-ink text-base">Self-Directed Schedule</h2>
-          <p className="text-xs text-ink-muted mt-1 max-w-xl">
-            You are responsible for self-allocating your tasks. Create new deliverables in your tasks workspace to track your progress and share updates automatically with the owner.
-          </p>
+          <h2 className="font-bold text-slate-900 text-sm">Worksheet Navigation</h2>
         </div>
         <Link
-          to="/employee/tasks"
-          className="px-5 py-2.5 bg-brand hover:bg-brand-hover text-white text-sm font-semibold rounded-lg shadow-md shadow-purple-600/10 flex items-center justify-center gap-2 self-start md:self-auto transition-all"
+          to="/employee/tasks/a-to-z"
+          className="px-4 py-2 bg-[#107c41] hover:bg-[#0b5a2f] text-white text-xs font-bold rounded-lg shadow-sm flex items-center justify-center gap-2 transition-colors shrink-0"
         >
-          <span>Go to Tasks Workspace</span>
-          <ArrowRight className="w-4.5 h-4.5" />
+          <span>Open Tasks Worksheet</span>
+          <ArrowRight className="w-3.5 h-3.5" />
         </Link>
       </div>
     </div>
